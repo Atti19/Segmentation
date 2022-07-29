@@ -11,7 +11,7 @@ from torchvision.io import read_image
 import matplotlib.pyplot as plt
 pathlbl = '/home/student/pascal/SegmentationClass/'
 pathimg = '/home/student/pascal/JPEGImages/'
-pathfle = '/home/student/pascal/train.txt'
+pathfle = '/home/student/pascal/test_p.txt'
 pathfle2 = '/home/student/pascal/overfit.txt'
 def imagesize(pathfle, pathimg, pathlbl):
     file = open(pathfle, 'r')
@@ -94,7 +94,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     for batch, (X, y) in enumerate(dataloader):
         X, y = X.to(device), y.to(device)
         y = y.long()
-        X = X.float()
+        #X = X.float()
         # Compute prediction and loss
         pred = model(X)
         loss = loss_fn(pred, y)
@@ -106,7 +106,8 @@ def train_loop(dataloader, model, loss_fn, optimizer):
 
         if batch % 10 == 0:
             loss, current = loss.item(), batch * len(X)
-        return loss, mean_dice_coef(y, pred)
+            print("loss: ", loss)
+        return loss#, mean_dice_coef(y, pred)
 
 def test_loop(dataloader, model, loss_fn):
     size = len(dataloader.dataset)
@@ -122,36 +123,37 @@ def test_loop(dataloader, model, loss_fn):
 
     test_loss /= num_batches
     correct /= size
-    #print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
-    return test_loss, mean_dice_coef(y, pred)
+    print(f"Avg loss: {test_loss:>8f} \n")
+    return test_loss#, mean_dice_coef(y, pred)
 
 def train():
     losslist = []
     testlosslist = []
-    dice = []
-    dicetest = []
+    #dice = []
+    #dicetest = []
     figure, axis = plt.subplots(2, 2)
     for t in range(epochs):
         print(f"Epoch {t+1}\n-------------------------------")
-        loss,diceloss = train_loop(train_dataloader, model, loss_fn, optimizer)
+        loss = train_loop(train_dataloader, model, loss_fn, optimizer)
         losslist.append(loss)
-        testlosses, testdice = test_loop(test_dataloader, model, loss_fn)
+        testlosses = test_loop(test_dataloader, model, loss_fn)
         testlosslist.append(testlosses)
-        dice.append(diceloss)
-        dicetest.append(testdice)
+        #dice.append(diceloss)
+        #dicetest.append(testdice)
         torch.save(model.state_dict(), 'model_weights.pth')
         torch.save(model, 'model.pth')
     axis[0, 0].plot((list(range(epochs))), losslist)
     axis[0, 0].set_title("Train Loss")
     axis[0, 1].plot((list(range(epochs))),testlosslist)
-    axis[0, 1].set_title("Test Loss")
-    axis[1, 0].plot((list(range(epochs))), dice)
-    axis[1, 0].set_title("Dice Train Loss")
-    axis[1, 1].plot((list(range(epochs))), dicetest)
-    axis[1, 1].set_title("Dice Test Loss")
+    #axis[0, 1].set_title("Test Loss")
+    #axis[1, 0].plot((list(range(epochs))), dice)
+    #axis[1, 0].set_title("Dice Train Loss")
+    #axis[1, 1].plot((list(range(epochs))), dicetest)
+    #axis[1, 1].set_title("Dice Test Loss")
     plt.show()
     plt.savefig("loss.png")
     print("Done!")
+
 train()
 
 

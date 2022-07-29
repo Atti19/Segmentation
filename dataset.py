@@ -22,6 +22,7 @@ class PascalData(Dataset):
         self.tf = transforms.Compose(
             [
                 transforms.ToTensor(),
+                transforms.Resize((112, 246)),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
@@ -41,14 +42,13 @@ class PascalData(Dataset):
     def __getitem__(self, idx):
 
         img_name = self.names[idx].strip() + '.jpg'
-        img = Image.open(self.pathimg + img_name).resize((246,112))
-        image = np.array(img)
-        image = torch.Tensor(image).float()
-        image = image.permute(2,0, 1)
+        img = Image.open(self.pathimg + img_name)
+        img = self.tf(img)
         lbl_name = self.names[idx].strip() + '.png'
-        lbl = Image.open(self.pathlbl + lbl_name).resize((246,112))
+        lbl = Image.open(self.pathlbl + lbl_name)
+        lbl = transforms.Resize((112, 246))(lbl)
         lbl = np.array(lbl)
         lbl[lbl == 255] = 0
-        return image, lbl
+        return img, lbl
 
 
