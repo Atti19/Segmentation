@@ -9,10 +9,11 @@ import numpy as np
 from torchvision import transforms
 from torchvision.io import read_image
 import matplotlib.pyplot as plt
+import timeit
 pathlbl = '/home/student/pascal/SegmentationClass/'
 pathimg = '/home/student/pascal/JPEGImages/'
-pathfle = '/home/student/pascal/test_p.txt'
-pathfle2 = '/home/student/pascal/overfit.txt'
+pathfle = '/home/student/pascal/train.txt'
+pathfle2 = '/home/student/pascal/val.txt'
 def imagesize(pathfle, pathimg, pathlbl):
     file = open(pathfle, 'r')
     lines = file.readlines()
@@ -26,7 +27,7 @@ def imagesize(pathfle, pathimg, pathlbl):
     return min(width), min(height)
 
 #dataload
-
+start = timeit.default_timer()
 #classes = np.load('/home/student/Downloads/classes.npy')
 classes = np.asarray(
             [
@@ -55,21 +56,25 @@ classes = np.asarray(
 #classes = torch.Tensor(classes)
 data = PascalData(pathfle, pathlbl, pathimg, classes)
 datatest = PascalData(pathfle2, pathlbl, pathimg, classes)
-train_dataloader = DataLoader(data, 32)
-test_dataloader = DataLoader(datatest, 32)
+train_dataloader = DataLoader(data, 50)
+test_dataloader = DataLoader(datatest, 50)
 
 
 #params
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 model = SegNet()
-
+#model.load_state_dict(torch.load('model_weights.pth'))
+#model.eval()
 model.to(device)
 learning_rate = 0.001
 epochs = 1000
-
+class_weights = np.ones(21)
+class_weights = class_weights*20
+class_weights[0] = 1
+class_weights = torch.Tensor(class_weights).to(device)
 #loss&optim
-loss_fn = nn.CrossEntropyLoss()
+loss_fn = nn.CrossEntropyLoss(weight = class_weights)
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 def single_dice_coef(y_true, y_pred_bin):
     # shape of y_true and y_pred_bin: (height, width)
@@ -89,6 +94,13 @@ def mean_dice_coef(y_true, y_pred_bin):
             mean_dice_channel += channel_dice/(channel_num*batch_size)
     return mean_dice_channel
 
+def accuracy(pred, truth):
+    pred = torch.argmax(pred, dim=1)
+    pixeli_tot = torch.count_nonzero(truth)
+    correct = (pred == truth)
+    pred = (pred != 0)
+    correct = torch.count_nonzero(correct == pred)
+    return (correct/pixeli_tot) * 100
 def train_loop(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
     for batch, (X, y) in enumerate(dataloader):
@@ -107,7 +119,9 @@ def train_loop(dataloader, model, loss_fn, optimizer):
         if batch % 10 == 0:
             loss, current = loss.item(), batch * len(X)
             print("loss: ", loss)
-        return loss#, mean_dice_coef(y, pred)
+            print(f"train_acc:{accuracy(pred, y):.2f}% ")
+        return loss, accuracy(pred, y)#, mean_dice_coef(y, pred)
+
 
 def test_loop(dataloader, model, loss_fn):
     size = len(dataloader.dataset)
@@ -119,35 +133,36 @@ def test_loop(dataloader, model, loss_fn):
             y = y.long()
             pred = model(X)
             test_loss += loss_fn(pred, y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
 
     test_loss /= num_batches
-    correct /= size
-    print(f"Avg loss: {test_loss:>8f} \n")
+    print(f"test_loss: {test_loss:>8f} \n")
+
     return test_loss#, mean_dice_coef(y, pred)
 
 def train():
     losslist = []
     testlosslist = []
+    accurlist = []
     #dice = []
     #dicetest = []
     figure, axis = plt.subplots(2, 2)
     for t in range(epochs):
         print(f"Epoch {t+1}\n-------------------------------")
-        loss = train_loop(train_dataloader, model, loss_fn, optimizer)
+        loss, acc = train_loop(train_dataloader, model, loss_fn, optimizer)
         losslist.append(loss)
         testlosses = test_loop(test_dataloader, model, loss_fn)
         testlosslist.append(testlosses)
+        accurlist.append(acc)
         #dice.append(diceloss)
         #dicetest.append(testdice)
         torch.save(model.state_dict(), 'model_weights.pth')
-        torch.save(model, 'model.pth')
+        #torch.save(model, 'model.pth')
     axis[0, 0].plot((list(range(epochs))), losslist)
     axis[0, 0].set_title("Train Loss")
     axis[0, 1].plot((list(range(epochs))),testlosslist)
-    #axis[0, 1].set_title("Test Loss")
-    #axis[1, 0].plot((list(range(epochs))), dice)
-    #axis[1, 0].set_title("Dice Train Loss")
+    axis[0, 1].set_title("Test Loss")
+    axis[1, 0].plot((list(range(epochs))), accurlist)
+    axis[1, 0].set_title("Accuracy")
     #axis[1, 1].plot((list(range(epochs))), dicetest)
     #axis[1, 1].set_title("Dice Test Loss")
     plt.show()
@@ -155,8 +170,8 @@ def train():
     print("Done!")
 
 train()
-
-
+stop = timeit.default_timer()
+print(stop-start)
 
 
 
