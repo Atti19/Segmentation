@@ -1,5 +1,5 @@
 import visdom
-
+from torch.optim.lr_scheduler import StepLR
 import VisdomUtil
 from dataset import PascalData
 from torch.utils.data import DataLoader
@@ -73,7 +73,7 @@ model.initialize_weights()
 #model.load_state_dict(torch.load('model_weights.pth'))
 #model.eval()
 model.to(device)
-learning_rate = 0.001
+learning_rate = 0.1
 epochs = 50000
 class_weights = np.ones(21)
 class_weights = class_weights*20
@@ -146,13 +146,15 @@ def test_loop(dataloader, model, loss_fn):
     return test_loss#, mean_dice_coef(y, pred)
 
 def train():
-    x = VisdomUtil.VisdomLinePlotter(env_name="experiment_lr=0.05")
+    x = VisdomUtil.VisdomLinePlotter(env_name="experimentscheduler_flip")
+    scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
     for t in range(epochs):
         print(f"Epoch {t+1}\n-------------------------------")
         loss, acc = train_loop(train_dataloader, model, loss_fn, optimizer)
         testlosses = test_loop(test_dataloader, model, loss_fn)
+        scheduler.step()
         if t%5 == 0:
-            torch.save(model.state_dict(), f'model_weights{t}.pth')
+            torch.save(model.state_dict(), f'/media/student/HDD1/CheckpointsSegmentare/model_weights{t}.pth')
         #torch.save(model, 'model.pth')
         x.plot("trainloss","loss","trainloss", t, loss)
         x.plot("test loss","loss", "testloss", t, testlosses)
