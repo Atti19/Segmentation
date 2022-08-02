@@ -1,3 +1,6 @@
+import visdom
+
+import VisdomUtil
 from dataset import PascalData
 from torch.utils.data import DataLoader
 from model import SegNet
@@ -10,6 +13,7 @@ from torchvision import transforms
 from torchvision.io import read_image
 import matplotlib.pyplot as plt
 import timeit
+from VisdomUtil import VisdomLinePlotter
 pathlbl = '/home/student/pascal/SegmentationClass/'
 pathimg = '/home/student/pascal/JPEGImages/'
 pathfle = '/home/student/pascal/train.txt'
@@ -53,29 +57,31 @@ classes = np.asarray(
                 [128, 192, 0],
                 [0, 64, 128],
             ])
+batch_size = 32
 #classes = torch.Tensor(classes)
 data = PascalData(pathfle, pathlbl, pathimg, classes)
 datatest = PascalData(pathfle2, pathlbl, pathimg, classes)
-train_dataloader = DataLoader(data, 50)
-test_dataloader = DataLoader(datatest, 50)
+train_dataloader = DataLoader(data, batch_size, shuffle=True)
+test_dataloader = DataLoader(datatest, batch_size)
 
 
 #params
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 model = SegNet()
+model.initialize_weights()
 #model.load_state_dict(torch.load('model_weights.pth'))
 #model.eval()
 model.to(device)
 learning_rate = 0.001
-epochs = 1000
+epochs = 50000
 class_weights = np.ones(21)
 class_weights = class_weights*20
 class_weights[0] = 1
 class_weights = torch.Tensor(class_weights).to(device)
 #loss&optim
 loss_fn = nn.CrossEntropyLoss(weight = class_weights)
-optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
 def single_dice_coef(y_true, y_pred_bin):
     # shape of y_true and y_pred_bin: (height, width)
     intersection = np.sum(y_true * y_pred_bin)
@@ -116,10 +122,10 @@ def train_loop(dataloader, model, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
 
-        if batch % 10 == 0:
-            loss, current = loss.item(), batch * len(X)
-            print("loss: ", loss)
-            print(f"train_acc:{accuracy(pred, y):.2f}% ")
+        #if batch % 10 == 0:
+        loss = loss.item()
+            #print("loss: ", loss)
+            #print(f"train_acc:{accuracy(pred, y):.2f}% ")
         return loss, accuracy(pred, y)#, mean_dice_coef(y, pred)
 
 
@@ -135,41 +141,26 @@ def test_loop(dataloader, model, loss_fn):
             test_loss += loss_fn(pred, y).item()
 
     test_loss /= num_batches
-    print(f"test_loss: {test_loss:>8f} \n")
+    #print(f"test_loss: {test_loss:>8f} \n")
 
     return test_loss#, mean_dice_coef(y, pred)
 
 def train():
-    losslist = []
-    testlosslist = []
-    accurlist = []
-    #dice = []
-    #dicetest = []
-    figure, axis = plt.subplots(2, 2)
+    x = VisdomUtil.VisdomLinePlotter(env_name="experiment_lr=0.05")
     for t in range(epochs):
         print(f"Epoch {t+1}\n-------------------------------")
         loss, acc = train_loop(train_dataloader, model, loss_fn, optimizer)
-        losslist.append(loss)
         testlosses = test_loop(test_dataloader, model, loss_fn)
-        testlosslist.append(testlosses)
-        accurlist.append(acc)
-        #dice.append(diceloss)
-        #dicetest.append(testdice)
-        torch.save(model.state_dict(), 'model_weights.pth')
+        if t%5 == 0:
+            torch.save(model.state_dict(), f'model_weights{t}.pth')
         #torch.save(model, 'model.pth')
-    axis[0, 0].plot((list(range(epochs))), losslist)
-    axis[0, 0].set_title("Train Loss")
-    axis[0, 1].plot((list(range(epochs))),testlosslist)
-    axis[0, 1].set_title("Test Loss")
-    axis[1, 0].plot((list(range(epochs))), accurlist)
-    axis[1, 0].set_title("Accuracy")
-    #axis[1, 1].plot((list(range(epochs))), dicetest)
-    #axis[1, 1].set_title("Dice Test Loss")
-    plt.show()
-    plt.savefig("loss.png")
+        x.plot("trainloss","loss","trainloss", t, loss)
+        x.plot("test loss","loss", "testloss", t, testlosses)
+        x.plot("trainaccuracy",'accuracy','trainacc', t, acc.cpu())
     print("Done!")
 
 train()
+
 stop = timeit.default_timer()
 print(stop-start)
 

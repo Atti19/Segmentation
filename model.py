@@ -148,3 +148,7 @@ class SegNet(nn.Module):
         #x = F.softmax(x, dim=1)
         return x
 
+    def initialize_weights(self):
+        if isinstance(self, nn.Conv2d):
+            nn.init.xavier_uniform_(self.weight.data, gain=nn.init.calculate_gain('relu'))
+
