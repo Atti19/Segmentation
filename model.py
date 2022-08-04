@@ -144,8 +144,7 @@ class SegNet(nn.Module):
         # Stage 1
         x = self.MaxDe(x, ind1)
         x = F.relu(self.BNDe12(self.ConvDe12(x)))
-        x = self.ConvDe11(x)
-        #x = F.softmax(x, dim=1)
+        x = self.BNDe11(self.ConvDe11(x))
         return x
 
     def initialize_weights(self):
