@@ -8,8 +8,10 @@ import numpy as np
 from torch.utils.data import DataLoader
 import timeit
 from torchsummary import summary
+from colormap import toColor
 def accuracy(pred, truth):
     pred = torch.argmax(pred, dim=1)
+    truth = torch.Tensor(truth)
     pixeli_tot = torch.count_nonzero(truth)
     correct = (pred == truth)
     pred = (pred != 0)
@@ -52,31 +54,48 @@ data = PascalData(pathfle2, pathlbl, pathimg, classes)
 #datatest = PascalData(pathfle2, pathlbl, pathimg, classes)
 device = 'cpu'
 train_dataloader = DataLoader(data, 32)
-model = UNet.UNet(3,21)
-model.load_state_dict(torch.load('/media/student/HDD1/FullSetCheckpoints/model_weights1400.pth'))
+model = UNet.UNet(3,21,bilinear=True)
+
+model.load_state_dict(torch.load('/media/student/HDD1/FullSetCheckpointsUnet/model_weights130.pth'))
 model.eval()
 model = model.to(device)
 #test_dataloader = DataLoader(datatest, 32)
-def test():
+def max_acc():
+    accuracies = []
+    #img, y = next(iter(train_dataloader))
+    f = open("accuracies.txt","w")
+    for i in range(1449):
+        print(i)
+        img, y = data.__getitem__(i)
+    #img = img[2]
+        img = torch.unsqueeze(img,dim =0)
+        img = img.cpu().to(device)
+        inf = model(img)
+        inf = torch.argmax(inf, dim=1)
+        cor, tot = accuracy(inf, y)
+        accuracies.append(cor/tot*100)
+        f.write(data.getName(i))
+        f.write(str(accuracies[i]))
+        f.write("\n")
+    f.close()
 
-    img, y = next(iter(train_dataloader))
-    img = img[0]
-    img = torch.unsqueeze(img,dim =0)
+def test():
+    img, y = data.__getitem__(0)
+    img = torch.unsqueeze(img, dim=0)
     img = img.cpu().to(device)
     inf = model(img)
-    #inf = inf*12
-    #inf = torch.softmax(inf, dim=1)
     inf = torch.argmax(inf, dim=1)
-    print(f"Accuracy:{accuracy(inf, y):.2f}%")
-    inf = torch.squeeze(inf)
+    inf = toColor(inf)
+    inf = torch.Tensor(inf)
+    inf = torch.permute(inf,(1,2,0))
     inf = inf.to(device)
     plt.imshow(inf)
     plt.show()
-
 def create_file():
     data.getPerson()
-def summary():
-    summary(model,(3,256,256))
-summary()
+
+#summary(model, (16,3,256,256))
+
 #create_file()
-#test()
+#max_acc()
+test()
