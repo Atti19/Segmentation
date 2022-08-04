@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from skimage.io import imshow
 import matplotlib.pyplot as plt
 
@@ -37,4 +38,37 @@ def color_map_viz():
     plt.yticks([row_size*i+row_size/2 for i in range(nclasses+1)], labels)
     plt.xticks([])
     plt.show()
-color_map_viz()
+
+culori=[
+     [0, 0, 0],
+     [102, 0, 0],
+     [102, 102, 0],
+     [51, 102, 0],
+     [0, 102, 102],
+     [0, 0, 102],
+     [51, 0, 102],
+     [102, 0, 102],
+     [102, 0, 51],
+     [255, 255, 51],
+     [153, 255, 51],
+     [51, 255, 255],
+     [51, 153, 255],
+     [178, 102, 255],
+     [160, 160, 160],
+     [255, 153, 153],
+     [255, 104, 153],
+     [153, 255, 255],
+     [255, 153, 255],
+     [255, 255, 255],
+     [204, 204, 255],
+]
+def toColor(array):
+    colored_array = np.empty([3, 256, 256])
+    array = torch.squeeze(array)
+    for i in range(256):
+        for j in range(256):
+            index = array[i][j]
+            colored_array[0][i][j] = culori[index][0]
+            colored_array[1][i][j] = culori[index][1]
+            colored_array[2][i][j] = culori[index][2]
+    return colored_array
